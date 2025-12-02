@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: game-db
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: gamedb
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - game-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Express Backend API
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: game-backend
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      MONGO_URI: mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-password}@mongodb:27017/gamedb?authSource=admin
+      PORT: 3000
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    networks:
+      - game-network
+    command: npm run dev
+
+  # Game Client (Nginx serving static files)
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: game-client
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - game-network
+
+volumes:
+  mongo-data:
+
+networks:
+  game-network:
+    driver: bridge
