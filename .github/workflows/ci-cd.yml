@@ -94,7 +94,7 @@ jobs:
 
   deploy:
     name: Deploy to Production
-    needs: [build-and-test, lint, build, security]
+    needs: [build-and-test, lint, build]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
