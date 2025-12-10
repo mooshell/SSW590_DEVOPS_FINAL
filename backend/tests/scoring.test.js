@@ -1,4 +1,18 @@
 // tests/scoring.test.js
+
+// Mock the database connection to prevent it from running during tests
+jest.mock('pg', () => {
+  const mClient = {
+    query: jest.fn(),
+  };
+  const mPool = {
+    query: jest.fn(),
+    end: jest.fn(),
+  };
+  return { Pool: jest.fn(() => mPool), Client: jest.fn(() => mClient) };
+});
+
+// Import after mocking
 const { calculateScore } = require('../server');
 
 describe('Scoring Logic Tests', () => {
