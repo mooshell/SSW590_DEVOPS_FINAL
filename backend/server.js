@@ -36,7 +36,10 @@ const initDB = async () => {
   }
 };
 
-initDB();
+// Only initialize DB if not in test mode
+if (process.env.NODE_ENV !== 'test') {
+  initDB();
+}
 
 // Scoring logic (exported for testing)
 const calculateScore = (timeAlive, obstaclesPassed) => {
@@ -103,19 +106,22 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Start server
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🎵 Music Runner Backend running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
-  server.close(() => {
-    console.log('HTTP server closed');
-    pool.end();
+// Only start server if not in test mode
+let server;
+if (process.env.NODE_ENV !== 'test') {
+  server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🎵 Music Runner Backend running on port ${PORT}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   });
-});
 
-module.exports = { app, calculateScore };
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM signal received: closing HTTP server');
+    server.close(() => {
+      console.log('HTTP server closed');
+      pool.end();
+    });
+  });
+}
+
+module.exports = { app, calculateScore, server };
