@@ -1,3 +1,4 @@
+// tests/scoring.test.js
 const { calculateScore } = require('../server');
 
 describe('Scoring Logic Tests', () => {

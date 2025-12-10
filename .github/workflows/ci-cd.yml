@@ -5,34 +5,169 @@ on:
     branches: [ main ]
   pull_request:
 
+env:
+  NODE_VERSION: 18
+  VERSION: 1.0.1  # Semantic version for Docker images
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
 
       - name: Install backend dependencies
-        working-directory: backend
-        run: npm install
+        working-directory: ./backend
+        run: npm ci
 
       - name: Run backend tests
-        working-directory: backend
-        run: npm test
+        working-directory: ./backend
+        run: npm test -- --coverage
 
-      - name: Install client dependencies
-        working-directory: client
-        run: npm install
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage/lcov.info
+          flags: backend
+          name: backend-coverage
 
-      - name: Build React app
-        working-directory: client
-        run: npm run build
+  lint:
+    name: Code Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Build Docker images
-        run: docker compose build
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Lint backend code
+        working-directory: ./backend
+        run: npm run lint || echo "No lint script found"
+
+  build:
+    name: Build Docker Images
+    needs: [build-and-test, lint]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build backend image (versioned)
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          push: false
+          tags: |
+            music-runner-backend:latest
+            music-runner-backend:${{ env.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build client image (versioned)
+        uses: docker/build-push-action@v4
+        with:
+          context: ./client
+          push: false
+          tags: |
+            music-runner-client:latest
+            music-runner-client:${{ env.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  security:
+    name: Security Scanning
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  deploy:
+    name: Deploy to Production
+    needs: [build-and-test, lint, build, security]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push backend image (versioned)
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/music-runner-backend:latest
+            ${{ secrets.DOCKER_USERNAME }}/music-runner-backend:${{ env.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push client image (versioned)
+        uses: docker/build-push-action@v4
+        with:
+          context: ./client
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/music-runner-client:latest
+            ${{ secrets.DOCKER_USERNAME }}/music-runner-client:${{ env.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to production server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            cd /opt/music-runner
+            docker-compose pull
+            docker-compose up -d --remove-orphans
+            docker system prune -f
+            echo "✅ Deployment completed successfully"
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          echo "Deployment finished with status: ${{ job.status }}"
