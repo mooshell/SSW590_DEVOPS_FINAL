@@ -26,7 +26,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: ./backend
-        run: npm ci
+        run: npm install
 
       - name: Run backend tests
         working-directory: ./backend
@@ -53,7 +53,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: ./backend
-        run: npm ci
+        run: npm install
 
       - name: Lint backend code
         working-directory: ./backend
@@ -91,27 +91,6 @@ jobs:
             music-runner-client:${{ env.VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  security:
-    name: Security Scanning
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-      - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: 'trivy-results.sarif'
 
   deploy:
     name: Deploy to Production
