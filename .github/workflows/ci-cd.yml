@@ -306,8 +306,7 @@ jobs:
           ## Deployment
           
           Access the application at:
-          - Game: http://localhost:3000
-          - API: http://localhost:3001/api/health
+          - Game: http://165.22.38.90:3000/
           
           ## Support
           
@@ -393,8 +392,7 @@ jobs:
           ```
           
           ### 🎮 Access the Application
-          - **Game**: http://localhost:3000
-          - **API**: http://localhost:3001/api/health
+          - **Game**: http://165.22.38.90:3000/
           
           ### 📋 System Requirements
           - Docker 20.10+
