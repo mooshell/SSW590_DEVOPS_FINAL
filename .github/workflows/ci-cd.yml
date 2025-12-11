@@ -488,9 +488,9 @@ jobs:
           \subsection{Quick Deployment}
           \begin{lstlisting}[language=bash, caption=One-command deployment]
 # Download and deploy
-curl -LO https://github.com/.../music-runner-${{ env.VERSION }}.zip
-unzip music-runner-${{ env.VERSION }}.zip
-cd music-runner-${{ env.VERSION }}
+curl -LO https://github.com/.../music-runner-VERSION.zip
+unzip music-runner-VERSION.zip
+cd music-runner-VERSION
 ./scripts/deploy.sh
           \end{lstlisting}
           
