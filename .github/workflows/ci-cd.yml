@@ -1,15 +1,12 @@
 name: Music Runner CI/CD Pipeline
 
 on:
-  # Automatic trigger on push
   push:
     branches: [ main, develop ]
-  
-  # Automatic trigger on pull requests
+    tags:
+      - 'v*'
   pull_request:
     branches: [ main ]
-  
-  # Manual trigger button
   workflow_dispatch:
     inputs:
       environment:
@@ -24,7 +21,8 @@ on:
 
 env:
   NODE_VERSION: '18'
-  VERSION: '1.0.1'
+  VERSION: '1.0.${{ github.run_number }}'
+  BUILD_DATE: ${{ github.event.head_commit.timestamp }}
 
 jobs:
   # ============================================
@@ -35,120 +33,50 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: 📥 Checkout Code
+      - name: 📥 Checkout Repository
         uses: actions/checkout@v3
       
-      - name: 📝 Create LaTeX Document
+      - name: 📝 Generate LaTeX Document
         run: |
           mkdir -p docs/latex
           cat > docs/latex/project-report.tex << 'LATEX_EOF'
           \documentclass{article}
           \usepackage[utf8]{inputenc}
           \usepackage{hyperref}
-          \usepackage{graphicx}
-          \usepackage{listings}
-          \usepackage{xcolor}
           
-          \title{Music Runner Game\\CI/CD Pipeline Report}
+          \title{Music Runner - DevOps Project\\Version ${{ env.VERSION }}}
           \author{DevOps Team}
           \date{\today}
           
           \begin{document}
-          
           \maketitle
-          \tableofcontents
-          \newpage
-          
-          \section{Project Overview}
-          Music Runner is a web-based rhythm game built with modern web technologies.
-          This document describes the complete CI/CD pipeline implementation.
-          
-          \section{Technology Stack}
-          \subsection{Frontend}
-          \begin{itemize}
-              \item React 18 - Modern UI framework
-              \item Tailwind CSS - Utility-first styling
-              \item Lucide React - Icon library
-          \end{itemize}
-          
-          \subsection{Backend}
-          \begin{itemize}
-              \item Node.js 18 - JavaScript runtime
-              \item Express - Web framework
-              \item PostgreSQL 15 - Database
-              \item Jest - Testing framework
-          \end{itemize}
-          
-          \section{CI/CD Pipeline Architecture}
-          
-          \subsection{Pipeline Stages}
-          \begin{enumerate}
-              \item \textbf{LaTeX Documentation Compilation} - Automated PDF generation
-              \item \textbf{Source Code Building} - Backend and Frontend compilation
-              \item \textbf{Automated Testing} - Unit tests with coverage reports
-              \item \textbf{Docker Image Creation} - Containerized application packages
-              \item \textbf{Artifact Packaging} - Complete deployment bundle
-          \end{enumerate}
-          
-          \subsection{Automated Testing}
-          The project includes comprehensive unit tests covering:
-          \begin{itemize}
-              \item Scoring calculation logic
-              \item Obstacle collision detection
-              \item Time-based scoring
-              \item Edge case validation
-          \end{itemize}
-          
-          \textbf{Test Coverage:} All tests pass with 44\% code coverage.
-          
-          \section{Deployment Architecture}
-          
-          The application is deployed using Docker Compose with three services:
-          \begin{enumerate}
-              \item \textbf{PostgreSQL Database} - Data persistence
-              \item \textbf{Backend API Server} - RESTful API (Port 3001)
-              \item \textbf{Frontend React App} - User interface (Port 3000)
-          \end{enumerate}
           
           \section{Build Information}
-          
           \begin{itemize}
-              \item \textbf{Build Date:} \today
-              \item \textbf{Version:} 1.0.1
-              \item \textbf{Pipeline:} GitHub Actions
-              \item \textbf{Node Version:} 18
+              \item Version: ${{ env.VERSION }}
+              \item Build: \#${{ github.run_number }}
+              \item Commit: \texttt{${{ github.sha }}}
+              \item Date: \today
           \end{itemize}
           
-          \section{Quality Assurance}
-          
-          \subsection{Testing Strategy}
+          \section{Project Overview}
+          Music Runner is a web-based rhythm game with:
           \begin{itemize}
-              \item Unit tests for business logic
-              \item Integration tests for API endpoints
-              \item Code linting for style consistency
-              \item Test coverage reporting
+              \item React 18 frontend
+              \item Node.js Express backend
+              \item PostgreSQL database
+              \item Docker containerization
           \end{itemize}
           
-          \subsection{Continuous Integration}
-          Every code push triggers:
+          \section{CI/CD Pipeline}
+          Automated pipeline with:
           \begin{itemize}
-              \item Automated test execution
-              \item Code quality checks
-              \item Docker image builds
-              \item Security scanning
+              \item LaTeX documentation generation
+              \item Source code compilation
+              \item Automated testing
+              \item Docker image packaging
+              \item GitHub release creation
           \end{itemize}
-          
-          \section{Conclusion}
-          
-          This project demonstrates a complete DevOps workflow with:
-          \begin{itemize}
-              \item Automated testing and quality gates
-              \item Containerized deployment
-              \item Documentation generation
-              \item Artifact packaging and versioning
-          \end{itemize}
-          
-          The pipeline ensures code quality, reproducible builds, and reliable deployments.
           
           \end{document}
           LATEX_EOF
@@ -159,120 +87,19 @@ jobs:
           root_file: project-report.tex
           working_directory: docs/latex
       
-      - name: 📊 Upload PDF Documentation
+      - name: 📤 Upload PDF Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: project-documentation
+          name: documentation
           path: docs/latex/project-report.pdf
-          retention-days: 90
-      
-      - name: ✅ Documentation Complete
-        run: |
-          echo "✅ LaTeX documentation compiled successfully"
-          ls -lh docs/latex/project-report.pdf
 
   # ============================================
-  # JOB 2: BUILD BACKEND
+  # JOB 2: BUILD AND TEST
   # ============================================
-  build-backend:
-    name: 🏗️ Build Backend Service
+  build-and-test:
+    name: 🏗️ Build and Test
     runs-on: ubuntu-latest
     needs: compile-latex
-    
-    steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v3
-      
-      - name: 🟢 Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
-      
-      - name: 📦 Install Dependencies
-        working-directory: ./backend
-        run: |
-          echo "📦 Installing backend dependencies..."
-          npm ci
-          echo "✅ Dependencies installed"
-      
-      - name: 🔍 Security Audit
-        working-directory: ./backend
-        run: |
-          echo "🔍 Running security audit..."
-          npm audit --audit-level=high || true
-      
-      - name: 🏗️ Validate Build
-        working-directory: ./backend
-        run: |
-          echo "🏗️ Validating backend build..."
-          node -e "console.log('Node.js version:', process.version)"
-          node -e "console.log('Backend validation successful')"
-          echo "✅ Backend build validated"
-      
-      - name: 📊 Upload Backend Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-build
-          path: backend/
-          retention-days: 30
-
-  # ============================================
-  # JOB 3: BUILD FRONTEND
-  # ============================================
-  build-frontend:
-    name: 🎨 Build Frontend Application
-    runs-on: ubuntu-latest
-    needs: compile-latex
-    
-    steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v3
-      
-      - name: 🟢 Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: client/package-lock.json
-      
-      - name: 📦 Install Dependencies
-        working-directory: ./client
-        run: |
-          echo "📦 Installing frontend dependencies..."
-          npm ci
-          echo "✅ Dependencies installed"
-      
-      - name: 🏗️ Build React Application
-        working-directory: ./client
-        run: |
-          echo "🏗️ Building production bundle..."
-          npm run build
-          echo "✅ Frontend build complete"
-      
-      - name: 📊 Build Size Report
-        working-directory: ./client
-        run: |
-          echo "📊 Build size analysis:"
-          du -sh build/
-          du -sh build/static/js/ 2>/dev/null || echo "No JS directory"
-          du -sh build/static/css/ 2>/dev/null || echo "No CSS directory"
-      
-      - name: 📊 Upload Frontend Build
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build
-          path: client/build/
-          retention-days: 30
-
-  # ============================================
-  # JOB 4: RUN AUTOMATED TESTS
-  # ============================================
-  test:
-    name: 🧪 Run Automated Tests
-    runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
     
     services:
       postgres:
@@ -290,7 +117,7 @@ jobs:
           - 5432:5432
     
     steps:
-      - name: 📥 Checkout Code
+      - name: 📥 Checkout Repository
         uses: actions/checkout@v3
       
       - name: 🟢 Setup Node.js
@@ -298,11 +125,16 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       
-      - name: 📦 Install Dependencies
+      - name: 📦 Install Backend Dependencies
         working-directory: ./backend
-        run: npm ci
+        run: |
+          echo "=========================================="
+          echo "📦 Installing backend dependencies..."
+          echo "=========================================="
+          npm ci
+          echo "✅ Dependencies installed"
       
-      - name: 🧪 Run Backend Tests
+      - name: 🧪 Run Tests
         working-directory: ./backend
         env:
           DB_HOST: localhost
@@ -312,314 +144,330 @@ jobs:
           DB_PASSWORD: testpass
           NODE_ENV: test
         run: |
+          echo "=========================================="
           echo "🧪 Running automated tests..."
-          npm test -- --coverage --verbose
+          echo "=========================================="
+          npm test -- --coverage
           echo "✅ All tests passed"
       
-      - name: 📊 Display Test Results
-        working-directory: ./backend
+      - name: 📦 Install Frontend Dependencies
+        working-directory: ./client
+        run: npm ci
+      
+      - name: 🏗️ Build Frontend
+        working-directory: ./client
+        env:
+          CI: false
         run: |
           echo "=========================================="
-          echo "📊 TEST RESULTS SUMMARY"
+          echo "🏗️ Building production bundle..."
           echo "=========================================="
-          cat coverage/coverage-summary.json 2>/dev/null || echo "Coverage summary not available"
-          echo "=========================================="
+          npm run build
+          echo "✅ Build complete"
       
-      - name: 📊 Upload Test Coverage
+      - name: 📤 Upload Test Results
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: test-coverage
           path: backend/coverage/
-          retention-days: 30
-      
-      - name: ✅ Tests Complete
-        run: |
-          echo "✅ All automated tests passed successfully!"
-          echo "🎉 Ready for Docker image creation"
 
   # ============================================
-  # JOB 5: BUILD DOCKER IMAGES
+  # JOB 3: PACKAGE DOCKER IMAGES
   # ============================================
-  build-docker:
-    name: 🐳 Build Docker Images
+  package-docker:
+    name: 🐳 Package Docker Images
     runs-on: ubuntu-latest
-    needs: test
+    needs: build-and-test
     
     steps:
-      - name: 📥 Checkout Code
+      - name: 📥 Checkout Repository
         uses: actions/checkout@v3
       
-      - name: 🐳 Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      
-      - name: 🏗️ Build Backend Docker Image
+      - name: 🏗️ Build Docker Images
         run: |
-          echo "🏗️ Building backend Docker image..."
+          echo "=========================================="
+          echo "🐳 Building Docker images..."
+          echo "=========================================="
           docker build -t music-runner-backend:${{ env.VERSION }} ./backend
-          docker tag music-runner-backend:${{ env.VERSION }} music-runner-backend:latest
-          echo "✅ Backend image built successfully"
-      
-      - name: 🏗️ Build Frontend Docker Image
-        run: |
-          echo "🏗️ Building frontend Docker image..."
           docker build -t music-runner-client:${{ env.VERSION }} ./client
-          docker tag music-runner-client:${{ env.VERSION }} music-runner-client:latest
-          echo "✅ Frontend image built successfully"
+          echo "✅ Images built successfully"
       
-      - name: 📊 List Docker Images
+      - name: 💾 Save Docker Images
         run: |
-          echo "📊 Built Docker images:"
-          docker images | grep music-runner
+          echo "=========================================="
+          echo "💾 Saving Docker images..."
+          echo "=========================================="
+          mkdir -p docker-images
+          docker save music-runner-backend:${{ env.VERSION }} | gzip > docker-images/backend-${{ env.VERSION }}.tar.gz
+          docker save music-runner-client:${{ env.VERSION }} | gzip > docker-images/client-${{ env.VERSION }}.tar.gz
+          ls -lh docker-images/
+          echo "✅ Images saved"
       
-      - name: 💾 Save Docker Images as Artifacts
-        run: |
-          echo "💾 Saving Docker images to tar files..."
-          mkdir -p docker-artifacts
-          docker save music-runner-backend:latest | gzip > docker-artifacts/backend-image.tar.gz
-          docker save music-runner-client:latest | gzip > docker-artifacts/client-image.tar.gz
-          echo "✅ Docker images saved"
-          ls -lh docker-artifacts/
-      
-      - name: 📊 Upload Docker Images
+      - name: 📤 Upload Docker Images
         uses: actions/upload-artifact@v4
         with:
           name: docker-images
-          path: docker-artifacts/*.tar.gz
-          retention-days: 30
+          path: docker-images/*.tar.gz
 
   # ============================================
-  # JOB 6: CREATE DEPLOYMENT PACKAGE
+  # JOB 4: CREATE RELEASE PACKAGE
   # ============================================
-  package:
-    name: 📦 Create Deployment Package
+  create-release:
+    name: 📦 Create GitHub Release
     runs-on: ubuntu-latest
-    needs: build-docker
+    needs: package-docker
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
     
     steps:
-      - name: 📥 Checkout Code
+      - name: 📥 Checkout Repository
         uses: actions/checkout@v3
       
       - name: 📥 Download All Artifacts
         uses: actions/download-artifact@v4
       
-      - name: 📦 Create Complete Deployment Package
+      - name: 📦 Create Release Package
         run: |
-          echo "📦 Creating comprehensive deployment package..."
+          echo "=========================================="
+          echo "📦 Creating release package v${{ env.VERSION }}"
+          echo "=========================================="
           
-          # Create package structure
-          mkdir -p deployment-package/{docs,docker-images,source,tests,scripts}
+          # Create release directory structure
+          mkdir -p music-runner-${{ env.VERSION }}/{docs,docker,source,tests,scripts}
           
           # Copy documentation
-          if [ -d "project-documentation" ]; then
-            cp -r project-documentation/*.pdf deployment-package/docs/ 2>/dev/null || echo "No PDF found"
-          fi
+          cp documentation/*.pdf music-runner-${{ env.VERSION }}/docs/project-report.pdf 2>/dev/null || echo "No docs"
           
           # Copy Docker images
-          if [ -d "docker-images" ]; then
-            cp docker-images/*.tar.gz deployment-package/docker-images/ 2>/dev/null || echo "No images"
-          fi
+          cp docker-images/*.tar.gz music-runner-${{ env.VERSION }}/docker/ 2>/dev/null || echo "No images"
           
           # Copy test results
-          if [ -d "test-coverage" ]; then
-            cp -r test-coverage deployment-package/tests/ 2>/dev/null || echo "No tests"
-          fi
+          cp -r test-coverage music-runner-${{ env.VERSION }}/tests/ 2>/dev/null || echo "No tests"
           
           # Copy source code
-          cp -r backend deployment-package/source/backend
-          cp -r client deployment-package/source/client
-          cp docker-compose.yml deployment-package/ 2>/dev/null || echo "No compose file"
+          cp -r backend music-runner-${{ env.VERSION }}/source/
+          cp -r client music-runner-${{ env.VERSION }}/source/
+          cp docker-compose.yml music-runner-${{ env.VERSION }}/ 2>/dev/null || true
+          cp README.md music-runner-${{ env.VERSION }}/ 2>/dev/null || true
           
           # Create deployment script
-          cat > deployment-package/scripts/deploy.sh << 'DEPLOY_EOF'
+          cat > music-runner-${{ env.VERSION }}/scripts/deploy.sh << 'DEPLOY_EOF'
           #!/bin/bash
-          # Music Runner Deployment Script
-          
-          echo "🚀 Deploying Music Runner Game..."
-          
-          # Load Docker images
-          echo "📦 Loading Docker images..."
-          docker load < docker-images/backend-image.tar.gz
-          docker load < docker-images/client-image.tar.gz
-          
-          # Start services
-          echo "🐳 Starting Docker containers..."
-          docker-compose up -d
-          
+          echo "🚀 Deploying Music Runner v${{ env.VERSION }}"
+          echo "Loading Docker images..."
+          docker load < docker/backend-${{ env.VERSION }}.tar.gz
+          docker load < docker/client-${{ env.VERSION }}.tar.gz
+          echo "Starting services..."
+          cd .. && docker-compose up -d
           echo "✅ Deployment complete!"
-          echo "🎮 Access the game at: http://localhost:3000"
           DEPLOY_EOF
           
-          chmod +x deployment-package/scripts/deploy.sh
+          chmod +x music-runner-${{ env.VERSION }}/scripts/deploy.sh
           
-          # Create deployment info file
-          cat > deployment-package/DEPLOYMENT_INFO.txt << 'INFO_EOF'
-          ================================================
-          MUSIC RUNNER - DEPLOYMENT PACKAGE
-          ================================================
+          # Create README for the release
+          cat > music-runner-${{ env.VERSION }}/README.md << 'README_EOF'
+          # Music Runner - Release v${{ env.VERSION }}
           
-          Build Information:
-          ------------------
-          Date: $(date)
-          Version: ${{ env.VERSION }}
-          Commit: ${{ github.sha }}
-          Branch: ${{ github.ref_name }}
-          Triggered by: ${{ github.actor }}
+          ## Quick Start
           
-          ================================================
-          PACKAGE CONTENTS:
-          ================================================
+          ```bash
+          # Extract the release
+          unzip music-runner-${{ env.VERSION }}.zip
+          cd music-runner-${{ env.VERSION }}
           
-          📄 docs/              - Project documentation (PDF)
-          🐳 docker-images/     - Docker images (tar.gz format)
-          📁 source/            - Complete source code
-          🧪 tests/             - Test results and coverage reports
-          📜 scripts/           - Deployment automation scripts
+          # Deploy
+          ./scripts/deploy.sh
+          ```
           
-          ================================================
-          DEPLOYMENT INSTRUCTIONS:
-          ================================================
+          ## Build Details
           
-          Quick Start:
-          -----------
-          1. Extract this package on your server
-          2. Run the deployment script:
-             cd deployment-package
-             ./scripts/deploy.sh
+          - **Version**: ${{ env.VERSION }}
+          - **Build**: #${{ github.run_number }}
+          - **Commit**: ${{ github.sha }}
+          - **Date**: ${{ env.BUILD_DATE }}
+          - **Tests Status**: ✅ All passed
           
-          Manual Deployment:
-          -----------------
-          1. Load Docker images:
-             docker load < docker-images/backend-image.tar.gz
-             docker load < docker-images/client-image.tar.gz
+          ## What's Included
           
-          2. Start the application:
-             docker-compose up -d
+          - 📄 Project documentation (PDF)
+          - 🐳 Docker images (backend & frontend)
+          - 📁 Complete source code
+          - 🧪 Test coverage reports
+          - 📜 Deployment scripts
           
-          3. Access the application:
-             Frontend: http://your-server-ip:3000
-             Backend API: http://your-server-ip:3001/api/health
+          ## System Requirements
           
-          ================================================
-          SYSTEM REQUIREMENTS:
-          ================================================
-          
-          - Docker Engine 20.10+
+          - Docker 20.10+
           - Docker Compose 2.0+
           - 2GB RAM minimum
           - 5GB disk space
           
-          ================================================
-          SUPPORT:
-          ================================================
+          ## Deployment
+          
+          Access the application at:
+          - Game: http://localhost:3000
+          - API: http://localhost:3001/api/health
+          
+          ## Support
           
           Repository: ${{ github.repository }}
-          Documentation: docs/project-report.pdf
+          README_EOF
+          
+          # Create release info file
+          cat > music-runner-${{ env.VERSION }}/RELEASE_INFO.txt << 'INFO_EOF'
+          ================================================
+          MUSIC RUNNER - DEPLOYMENT ARTIFACT v${{ env.VERSION }}
+          ================================================
+          
+          Build Details:
+          --------------
+          Version: ${{ env.VERSION }}
+          Build #: ${{ github.run_number }}
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref_name }}
+          Build time: ${{ env.BUILD_DATE }}
+          Built by: ${{ github.actor }}
+          
+          Artifact: music-runner-${{ env.VERSION }}.zip
+          
+          Tests Status: ✅ All passed
+          
+          This artifact contains the complete website ready for deployment.
+          
+          Package Contents:
+          -----------------
+          📄 docs/              - Project documentation
+          🐳 docker/            - Docker images (tar.gz)
+          📁 source/            - Complete source code
+          🧪 tests/             - Test results
+          📜 scripts/           - Deployment automation
+          
+          Quick Deploy:
+          -------------
+          ./scripts/deploy.sh
           
           ================================================
           INFO_EOF
           
-          # Create README
-          cat > deployment-package/README.md << 'README_EOF'
-          # Music Runner - Deployment Package
+          # Create the ZIP file
+          zip -r music-runner-${{ env.VERSION }}.zip music-runner-${{ env.VERSION }}/
           
-          ## Quick Deploy
+          echo ""
+          echo "✅ Release package created:"
+          ls -lh music-runner-${{ env.VERSION }}.zip
+          echo "=========================================="
+      
+      - name: 📝 Generate Release Notes
+        id: release_notes
+        run: |
+          cat > RELEASE_NOTES.md << 'NOTES_EOF'
+          ## 🎵 Music Runner v${{ env.VERSION }}
           
+          ### Build Information
+          - **Version**: ${{ env.VERSION }}
+          - **Build Number**: #${{ github.run_number }}
+          - **Commit**: `${{ github.sha }}`
+          - **Build Date**: ${{ env.BUILD_DATE }}
+          - **Built By**: @${{ github.actor }}
+          
+          ### ✅ Tests Status
+          All automated tests passed successfully!
+          
+          ### 📦 Deployment Artifact
+          This release includes:
+          - ✅ Complete source code
+          - ✅ Docker images (backend & frontend)
+          - ✅ Project documentation (PDF)
+          - ✅ Test coverage reports
+          - ✅ Automated deployment scripts
+          
+          ### 🚀 Quick Deploy
           ```bash
-          # Extract and deploy
-          unzip deployment-package.zip
-          cd deployment-package
+          # Download and extract
+          unzip music-runner-${{ env.VERSION }}.zip
+          cd music-runner-${{ env.VERSION }}
+          
+          # Deploy with Docker
           ./scripts/deploy.sh
           ```
           
-          ## What's Included
+          ### 🎮 Access the Application
+          - **Game**: http://localhost:3000
+          - **API**: http://localhost:3001/api/health
           
-          - 📄 Complete PDF documentation
-          - 🐳 Pre-built Docker images
-          - 📁 Full source code
-          - 🧪 Test coverage reports
-          - 📜 Automated deployment scripts
+          ### 📋 System Requirements
+          - Docker 20.10+
+          - Docker Compose 2.0+
+          - 2GB RAM
+          - 5GB disk space
           
-          ## Access the Application
-          
-          - Game: http://localhost:3000
-          - API: http://localhost:3001/api/health
-          
-          ## Deployment Verified ✅
-          
-          This package has passed all automated tests and quality checks.
-          README_EOF
-          
-          # Create the ZIP package
-          zip -r music-runner-deployment-${{ github.sha }}.zip deployment-package/
-          
-          echo "✅ Deployment package created successfully"
-          ls -lh music-runner-deployment-*.zip
+          ### Assets
+          - `music-runner-${{ env.VERSION }}.zip` - Complete deployment package
+          - `Source code (zip)` - Source code only
+          - `Source code (tar.gz)` - Source code only
+          NOTES_EOF
       
-      - name: 📊 Upload Complete Deployment Package
-        uses: actions/upload-artifact@v4
+      - name: 🏷️ Create GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: complete-deployment-package
-          path: music-runner-deployment-*.zip
-          retention-days: 90
+          tag_name: v${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          files: |
+            music-runner-${{ env.VERSION }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: 🎉 Package Complete
+      - name: 🎉 Release Complete
         run: |
           echo "=========================================="
-          echo "🎉 DEPLOYMENT PACKAGE READY"
+          echo "🎉 GITHUB RELEASE CREATED"
           echo "=========================================="
-          echo "📦 Package: music-runner-deployment-${{ github.sha }}.zip"
-          echo "📏 Size: $(du -h music-runner-deployment-*.zip | cut -f1)"
-          echo "✅ All artifacts packaged successfully"
+          echo "Version: v${{ env.VERSION }}"
+          echo "Tag: v${{ env.VERSION }}"
+          echo "Package: music-runner-${{ env.VERSION }}.zip"
+          echo ""
+          echo "View at:"
+          echo "https://github.com/${{ github.repository }}/releases/tag/v${{ env.VERSION }}"
           echo "=========================================="
 
   # ============================================
-  # JOB 7: PIPELINE SUMMARY
+  # JOB 5: PIPELINE SUMMARY
   # ============================================
   summary:
     name: 📋 Pipeline Summary
     runs-on: ubuntu-latest
-    needs: [compile-latex, build-backend, build-frontend, test, build-docker, package]
+    needs: [compile-latex, build-and-test, package-docker, create-release]
     if: always()
     
     steps:
-      - name: 📊 Display Pipeline Results
+      - name: 📊 Display Results
         run: |
-          echo "================================================"
-          echo "🎵 MUSIC RUNNER CI/CD PIPELINE SUMMARY"
-          echo "================================================"
+          echo "=========================================="
+          echo "🎵 MUSIC RUNNER CI/CD PIPELINE"
+          echo "   BUILD SUMMARY"
+          echo "=========================================="
+          echo ""
+          echo "Version: v${{ env.VERSION }}"
+          echo "Build: #${{ github.run_number }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
           echo ""
           echo "Job Results:"
           echo "------------"
-          echo "📄 LaTeX Compilation:    ${{ needs.compile-latex.result }}"
-          echo "🏗️ Backend Build:         ${{ needs.build-backend.result }}"
-          echo "🎨 Frontend Build:        ${{ needs.build-frontend.result }}"
-          echo "🧪 Automated Tests:       ${{ needs.test.result }}"
-          echo "🐳 Docker Images:         ${{ needs.build-docker.result }}"
-          echo "📦 Package Creation:      ${{ needs.package.result }}"
+          echo "📄 Documentation:     ${{ needs.compile-latex.result }}"
+          echo "🏗️ Build & Test:      ${{ needs.build-and-test.result }}"
+          echo "🐳 Docker Package:    ${{ needs.package-docker.result }}"
+          echo "📦 GitHub Release:    ${{ needs.create-release.result }}"
           echo ""
-          echo "================================================"
-          echo "Build Information:"
-          echo "------------"
-          echo "Commit: ${{ github.sha }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Triggered by: ${{ github.actor }}"
-          echo "Trigger type: ${{ github.event_name }}"
-          echo ""
-          echo "================================================"
-          echo "📦 ARTIFACTS AVAILABLE:"
-          echo "================================================"
-          echo "1. project-documentation (PDF report)"
-          echo "2. backend-build (compiled backend)"
-          echo "3. frontend-build (optimized React app)"
-          echo "4. test-coverage (test results)"
-          echo "5. docker-images (containerized apps)"
-          echo "6. complete-deployment-package (all-in-one ZIP)"
-          echo ""
-          echo "================================================"
-          if [ "${{ needs.test.result }}" == "success" ]; then
-            echo "✅ ALL TESTS PASSED - READY FOR DEPLOYMENT"
+          echo "=========================================="
+          if [ "${{ needs.build-and-test.result }}" == "success" ]; then
+            echo "✅ PIPELINE SUCCESSFUL"
+            echo "📦 Release created: v${{ env.VERSION }}"
           else
-            echo "❌ SOME JOBS FAILED - REVIEW LOGS"
+            echo "❌ PIPELINE FAILED"
           fi
-          echo "================================================"
+          echo "=========================================="
